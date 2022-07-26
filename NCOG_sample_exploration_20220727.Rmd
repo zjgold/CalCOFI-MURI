@@ -1,0 +1,170 @@
+---
+title: "NCOG eDNA Sample Exploration"
+output:
+  pdf_document: default
+  html_document: default
+date: "2022-07-26"
+---
+
+```{r, echo=FALSE, hide=TRUE, warnings=FALSE,message=FALSE}
+library(tidyverse)
+library(here)
+library(sf)
+library(nationalparkcolors)
+library(knitr)
+library("rnaturalearth")
+library("rnaturalearthdata")
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+```
+
+```{r,echo=FALSE, hide=TRUE, warnings=FALSE,echo=FALSE}
+sample_data <- read.csv(here("NCOG_sample_log_DNA_stvx_meta_2014-2020.csv"))
+
+```
+
+
+# TL;DR
+
+### NCOG has tons of surface samples, a handful of cardinal stations are more frequently sampled, and most stations have at least 5 samples. 
+
+# Summary of NCOG
+NOAA-CalCOFI Ocean Genomics samples have been conducted regularly on CalCOFI cruises from 2014 until the present lead by Professor Andrew Allen and his lab at Scripps Institution of Oceanography + J. Craig Venter Institute. These samples are seawater collected at sea via Niskin rosettes on the CalCOFI cruises. [Not to be confused with ethanol preserved samples of 505 µm plankton tows that Zack amplified during his SWFSC internship.]
+
+Previous work utilizing the NCOG samples have focussed on characterizing microbial and phytoplankton diversity. Here is their most recent publication which includes all currently extracted samples: https://www.nature.com/articles/s41467-022-30139-4.pdf?origin=ppub)=
+
+The purpose of this document is to summarize the currently available NCOG samples to 1) understand the distribution of samples across space, time, and depth, and 2) help identify priority targets for the MURI CalCOFI sampling.
+
+### Protocols
+**Collection Protocol**: https://www.protocols.io/view/noaa-calcofi-ocean-genomics-ncog-sample-collection-eq2lypdorlx9/v1  
+For DNA samples, 0.5-2L liters of seawater collected via Niskin are filtered via Masterflex persistaltic pumps onto 0.2 µm Sterivex filters. 
+
+**DNA Extraction Protocol**: https://www.protocols.io/view/sterivex-dna-extraction-x54v9m1y4g3e/v2  
+DNA is extracted via NucleoMag Plant Kit for DNA purification
+(Macherey-Nagel, Düren, Germany) on an epMotion 5057TMX (Eppendorf, Hamburg, Germany). 
+
+**Library Preparation Protocol**:https://www.protocols.io/view/amplicon-library-preparation-bp2l6b4j5gqe/v1  
+V4-V5 region of the 16 S rRNA gene and V9 region of the 18S rRNA
+One-step PCR using the TruFi DNA Polymerase PCR kit
+
+
+# General Statistics
+
+Unique Samples:
+```{r,echo=FALSE}
+sample_data$Sample.Name %>%  unique() %>% length() %>% paste()
+```
+
+Unique Samples by Depth:
+
+```{r,echo=FALSE}
+
+pal <- park_palette("ChannelIslands", 5)
+
+sample_data %>% 
+  mutate(., Depth    = cut_width(Depthm, width = 10)) %>% 
+  group_by(Depth) %>% 
+  dplyr::summarise(Count=n_distinct(Sample.Name)) %>% kable()
+```
+
+## Histogram of Depth
+```{r,echo=FALSE,warning=FALSE}
+my_binwidth <- 1
+
+sample_data %>%  
+  group_by(Depthm) %>% 
+  ggplot(., aes(x=Depthm))+
+  geom_histogram(binwidth = my_binwidth, colour= "black", fill = pal[3]) +
+  geom_density(aes(y = ..density.. * (nrow(sample_data) * my_binwidth)), fill=pal[5], alpha = .4) +theme_bw() + scale_x_sqrt(breaks=c(0,10,50,100,200,400,600)) +xlab("Depth (m)") + ylab("Count")
+```
+  
+Clearly the vast majority of NCOG samples are taken within the top 100m. Only 7 samples were taken below 200m.
+
+# Maps
+
+## Cruise Map
+
+```{r,echo=FALSE,warning=FALSE}
+  sample_data %>% 
+    group_by(Sta_ID) %>% 
+    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Cruise_count=n_distinct(Cruise))-> station_cruise
+  
+  
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = station_cruise, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = Cruise_count,size = Cruise_count)) +
+      scale_colour_viridis_c(alpha = .8, option = "inferno") +
+    coord_sf(xlim = c(-126, -116), ylim = c(29, 38), expand = FALSE) +theme_bw() +xlab("Longitude") +ylab("Lattitude") +labs(size="Unique Cruises",colour="Unique Cruises") 
+```
+  
+The cardinal stations are visible here as they are sampled far more frequently.
+
+## Bottle Map
+
+```{r,echo=FALSE,warning=FALSE}
+  sample_data %>% 
+    group_by(Sta_ID) %>% 
+    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Sample_count=n_distinct(Sample.Name
+))-> station_sample
+  
+  
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = station_sample, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = Sample_count,size = Sample_count)) +
+      scale_colour_viridis_c(alpha = .8) +
+    coord_sf(xlim = c(-126, -116), ylim = c(29, 38), expand = FALSE) +theme_bw() +xlab("Longitude") +ylab("Lattitude") +labs(size="Unique Samples",colour="Unique Samples") 
+```
+  
+  The vast majority of stations south of Point. Conception have multiple depths and multiple cruises.
+  
+
+## Deep Bottle Map
+```{r,echo=FALSE,warning=FALSE}
+
+ sample_data %>% 
+    filter(., Depthm > 200) %>% 
+    group_by(Sta_ID) %>% 
+    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Sample_count=n_distinct(Sample.Name
+))-> station_sample_deep
+  
+  
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = station_sample_deep, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = Sample_count,size = Sample_count)) +
+      scale_colour_viridis_c(alpha = .8) +
+    coord_sf(xlim = c(-126, -116), ylim = c(29, 38), expand = FALSE) +theme_bw() +xlab("Longitude") +ylab("Lattitude") +labs(size="Unique Samples",colour="Unique Samples") 
+
+```
+  
+Very few samples taken at depth.
+
+## Average Depth Map
+```{r,echo=FALSE,warning=FALSE}
+
+ sample_data %>% 
+    group_by(Sta_ID) %>% 
+    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Sample_count=n_distinct(Sample.Name),mean_depth=mean(Depthm)) -> station_sample_depth
+  
+  
+ggplot(data = world) +
+    geom_sf() +
+    geom_point(data = station_sample_depth, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = mean_depth,size = Sample_count)) +
+      scale_colour_viridis_c(alpha = .8,option = "plasma") +
+    coord_sf(xlim = c(-126, -116), ylim = c(29, 38), expand = FALSE) +theme_bw() +xlab("Longitude") +ylab("Lattitude") +labs(size="Unique Samples",colour="Mean Depth (m)") 
+
+```
+  
+Another way of visualizing the depth distributions of the samples. One of the sets of samples is taken at the Chla max which explains the nearshore-offshore depth distribution. Cardinal stations have deeper samples taken.
+
+# Tile Plot
+```{r, fig.height=12,echo=FALSE,warning=FALSE}
+sample_data %>% 
+  group_by(Cruise, Sta_ID) %>% 
+  mutate(., bottle_count = n_distinct(Bottle)) %>% 
+  mutate(., Cruise_name = as.character(Cruise)) %>% 
+  ggplot(., aes(x=Cruise_name, y=Sta_ID, fill=bottle_count)) +geom_tile() +theme_bw() +
+  ylab("Station ID") +xlab("Cruise Name") +theme(axis.text.x=element_text(angle = -45, hjust = 0.5)) +labs(fill="Unique Bottles") +xlab("Cruise") +ylab("Station")
+
+```
+  
+Only a handful of stations have been continously sampled on nearly every cruise since 2014. The vast majority of stations have been sampled more infrequently. Northern stations were sampled 2x times.
