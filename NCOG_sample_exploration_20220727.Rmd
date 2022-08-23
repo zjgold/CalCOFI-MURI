@@ -3,13 +3,15 @@ title: "NCOG eDNA Sample Exploration"
 output:
   pdf_document: default
   html_document: default
-date: "2022-07-26"
+date: "2022-08-23"
 ---
 
 ```{r, echo=FALSE, hide=TRUE, warnings=FALSE,message=FALSE}
 library(tidyverse)
 library(here)
 library(sf)
+library(devtools)
+#devtools::install_github("katiejolly/nationalparkcolors")
 library(nationalparkcolors)
 library(knitr)
 library("rnaturalearth")
@@ -20,13 +22,14 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 
 ```{r,echo=FALSE, hide=TRUE, warnings=FALSE,echo=FALSE}
 sample_data <- read.csv(here("NCOG_sample_log_DNA_stvx_meta_2014-2020.csv"))
-
+sample_data <- sample_data %>% 
+  filter(., str_detect(Sample.Name,"_S"))
 ```
 
 
 # TL;DR
 
-### NCOG has tons of surface samples, a handful of cardinal stations are more frequently sampled, and most stations have at least 5 samples. 
+### NCOG has many of surface samples, a handful of cardinal stations are more frequently sampled, and most stations have at least 5 samples. 
 
 # Summary of NCOG
 NOAA-CalCOFI Ocean Genomics samples have been conducted regularly on CalCOFI cruises from 2014 until the present lead by Professor Andrew Allen and his lab at Scripps Institution of Oceanography + J. Craig Venter Institute. These samples are seawater collected at sea via Niskin rosettes on the CalCOFI cruises. [Not to be confused with ethanol preserved samples of 505 µm plankton tows that Zack amplified during his SWFSC internship.]
@@ -38,6 +41,8 @@ The purpose of this document is to summarize the currently available NCOG sample
 ### Protocols
 **Collection Protocol**: https://www.protocols.io/view/noaa-calcofi-ocean-genomics-ncog-sample-collection-eq2lypdorlx9/v1  
 For DNA samples, 0.5-2L liters of seawater collected via Niskin are filtered via Masterflex persistaltic pumps onto 0.2 µm Sterivex filters. 
+
+**IMPORTANT NOTE**: We only care about the sterivex filters at the moment. They have a "_S" designation in the Sample.Name column.
 
 **DNA Extraction Protocol**: https://www.protocols.io/view/sterivex-dna-extraction-x54v9m1y4g3e/v2  
 DNA is extracted via NucleoMag Plant Kit for DNA purification
@@ -118,7 +123,7 @@ ggplot(data = world) +
   The vast majority of stations south of Point. Conception have multiple depths and multiple cruises.
   
 
-## Deep Bottle Map
+## "Deep" Bottle Map (>200m)
 ```{r,echo=FALSE,warning=FALSE}
 
  sample_data %>% 
@@ -138,17 +143,17 @@ ggplot(data = world) +
   
 Very few samples taken at depth.
 
-## Average Depth Map
+## Max Depth Map
 ```{r,echo=FALSE,warning=FALSE}
 
  sample_data %>% 
     group_by(Sta_ID) %>% 
-    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Sample_count=n_distinct(Sample.Name),mean_depth=mean(Depthm)) -> station_sample_depth
+    dplyr::summarise(mean_Lon_Dec=mean(Lon_Dec),mean_Lat_Dec=mean(Lat_Dec), Sample_count=n_distinct(Sample.Name),max_depth=max(Depthm)) -> station_sample_depth
   
   
 ggplot(data = world) +
     geom_sf() +
-    geom_point(data = station_sample_depth, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = mean_depth,size = Sample_count)) +
+    geom_point(data = station_sample_depth, aes(x = mean_Lon_Dec, y = mean_Lat_Dec,color = max_depth,size = Sample_count)) +
       scale_colour_viridis_c(alpha = .8,option = "plasma") +
     coord_sf(xlim = c(-126, -116), ylim = c(29, 38), expand = FALSE) +theme_bw() +xlab("Longitude") +ylab("Lattitude") +labs(size="Unique Samples",colour="Mean Depth (m)") 
 
